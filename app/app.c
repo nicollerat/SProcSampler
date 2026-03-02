@@ -10,6 +10,7 @@
 #include "button.h"
 #include "siggen.h"
 #include "cmd.h"
+#include "params.h"
 
 #include "tim.h"
 #include "gpio.h"
@@ -42,6 +43,8 @@ int cntl =0;
 //   values = np.fromfile('value1.bin', dtype=np.int16)
 int prev_v=0xfff;
 int subdiv=0;
+float adc1=0;
+float adc2=0;
 
 // Callback from the ADC
 void app_adc(uint16_t value1, uint16_t value2)
@@ -50,6 +53,9 @@ void app_adc(uint16_t value1, uint16_t value2)
 	cnt++;
 	tabValues1[tabIndex]=value1;
 	tabValues2[tabIndex]=value2;
+
+	adc1 = value1*(3.3/0x4096);
+	adc2 = value2*(3.3/0x4096);
 
 	// trigger around mid value
 	if (tabIndex==0) {
@@ -74,8 +80,8 @@ void app_adc(uint16_t value1, uint16_t value2)
 				break;
 			}
 		}
-		writeDAC1(value1);
-		writeDAC2(value2);
+		writeDAC1(value1>>1);
+		writeDAC2(value2>>1);
 		if (MODE==MODE_PWM) {
 			pwmUpdate(value1);
 		} else {
@@ -99,6 +105,9 @@ void app_init()
 	APP = APP_COPY;
 	setPWMFreq(50000);
 	enablePWM(true);
+
+	paramAdd("ADC1", ptFloat , &adc1);
+	paramAdd("ADC2", ptFloat , &adc2);
 }
 
 void app_loop()
@@ -122,23 +131,23 @@ void app_loop()
 }
 
 // Handle commands from UART
-void appCommand(int rspID, char * str)
+void appCommand(char * str, t_rspf rspf)
 {
 	if (strcmp(str,"pwm")==0) {
 		APP=APP_PWM;
-		sendUart("PWM MODE\n");
+		rspf("PWM MODE\n");
 	} else if (strcmp(str,"dac")==0) {
 		APP=APP_COPY;
 		pwmUpdate(0);
-		sendUart("DAC MODE\n");
+		rspf("DAC MODE\n");
 	} else if (strcmp(str,"merci qui ?")==0) {
 		APP=APP_COPY;
 		pwmUpdate(0);
-		sendUart("Merci Pascal\n");
+		rspf("Merci Pascal\n");
 	} else if (strcmp(str,"help")==0) {
 		APP=APP_COPY;
 		pwmUpdate(0);
-		sendUart("Lis la doc !\n");
+		rspf("Lis la doc !\n");
 	} else if (strcmp(str,"50k")==0) {
 		app_setMode(MODE_50k);
 	} else if (strcmp(str,"5k")==0) {
@@ -146,9 +155,9 @@ void appCommand(int rspID, char * str)
 	} else if (strcmp(str,"PWM")==0) {
 		app_setMode(MODE_PWM);
 	} else {
-		sendUart("Unknown command ");
-		sendUart(str);
-		sendUart("\n");
+		rspf("Unknown command ");
+		rspf(str);
+		rspf("\n");
 	}
 }
 

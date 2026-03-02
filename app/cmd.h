@@ -8,10 +8,10 @@
 #ifndef CMD_H_
 #define CMD_H_
 
-typedef void (t_rspf)(char *);
+typedef void (*t_rspf)(char *);
 
-void cmdHandleCommand(int rspID, char * cmd);
-void cmdSendResponse(char * msg);
+void cmdHandleCommand(char * cmd, t_rspf rspf);
+void cmdSendResponse(char * msg, t_rspf rspf);
 void cmdRegulationProcess(void);
 void cmdLoop();
 

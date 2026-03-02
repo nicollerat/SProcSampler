@@ -9,6 +9,7 @@
 #define APP_APP_H_
 
 #include <stdint.h>
+#include "cmd.h"
 
 typedef enum { MODE_50k, MODE_5k, MODE_PWM } e_mode;
 void app_setMode(e_mode mode);
@@ -19,6 +20,6 @@ void app_init();
 void app_loop();
 void app_timer();
 
-void appCommand(int rspID, char * str);
+void appCommand( char * str, t_rspf rspf);
 
 #endif /* APP_APP_H_ */

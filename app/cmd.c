@@ -7,7 +7,7 @@
 #include "usart.h"
 #include "main.h"
 #include "string.h"
-
+#include "stddef.h"
 /**
 
  */
@@ -39,7 +39,7 @@ static char * getWord(char * word, char sep, char * str)
 	return str;
 }
 
-typedef void (*tCommandHandler)(int rspID, char * cmd);
+typedef void (*tCommandHandler)(char * cmd, t_rspf rspf);
 
 typedef struct {
 	const char * name; // pointer to command name
@@ -47,44 +47,30 @@ typedef struct {
 	const char * helper; // pointer to help string
 } tCommandEntry;
 
-void cmdVersionHandler(int rspID, char * cmd)
+void cmdVersionHandler(char * cmd, t_rspf rspf)
 {
     char rsp[80];
     sprintf(rsp,"Version %s", VERSION_STR);
 
-    cmdSendResponse(rsp);
+    cmdSendResponse(rsp, rspf);
 }
 
-void cmdParamHandler(int rspID, char * cmd)
+void cmdParamHandler(int rspID, char * cmd, t_rspf rspf)
 {
-    paramExec(cmd, cmdSendResponse);
+    paramExec(cmd, rspf);
 }
 
-
-
-
-void cmdSpyHandler(int rspID, char * cmd)
-{
-    char word[40];
-    char * current = getWord(word, ' ', cmd);
-    if (word[0]=='1') {
-      spyEnabled=true;
-      cmdSendResponse("SPY enabled");
-    } else {
-      spyEnabled=false;
-      cmdSendResponse("SPY disabled");
-    }
-}
 
 const tCommandEntry commandHandlers[] = {
 		{"version", cmdVersionHandler, " Return software version"},
 		{"app", appCommand, "Set app command. param : 50k|5k|PWM"},
+		{"p", paramExec, "Handle parameters"},
 };
 
 /* Handle a text command
  * 	Look for a keywork in the above list
  */
-void cmdHandleCommand(int rspID, char * cmd)
+void cmdHandleCommand(char * cmd, t_rspf rspf)
 {
 	int t;
 	char word[40];
@@ -92,21 +78,23 @@ void cmdHandleCommand(int rspID, char * cmd)
 	char * current = getWord(word, ' ', cmd);
 	for(t=0;t<sizeof(commandHandlers)/sizeof(tCommandEntry); t++) {
 		if (strcmp(word, commandHandlers[t].name)==0) {
-			commandHandlers[t].h(rspID, current);
+			commandHandlers[t].h(current, rspf);
 			found = true;
 			break;
 		}
 	}
 	if (!found) { // If not found, return a list of commands
 		char rsp[128];
-		cmdSendResponse("Available commands :");
+		cmdSendResponse("Available commands :", rspf);
 		for(t=0;t<sizeof(commandHandlers)/sizeof(tCommandEntry); t++) {
 			sprintf(rsp, "%10s %s", commandHandlers[t].name, commandHandlers[t].helper);
-			cmdSendResponse(rsp);
+			cmdSendResponse(rsp, rspf);
 		}
 
 	}
 }
+
+t_rspf proc_rspf = 0;
 
 // This is called when the process occurs, let display or not something
 void cmdRegulationProcess(void)
@@ -114,22 +102,26 @@ void cmdRegulationProcess(void)
   char str[80];
   if (spyEnabled) {
     sprintf(str,"undefined");
-    cmdSendResponse(str);
+    if (proc_rspf) {
+    	cmdSendResponse(str, proc_rspf);
+    }
   }
 }
 
 // Send a response over the UART
-void cmdSendResponse(char * msg)
+void cmdSendResponse(char * msg, t_rspf rspf)
 {
-	sendUart(msg);
-	sendUart("\n");
+	rspf(msg);
+	rspf("\n");
 }
 
+// Background loop that handle messages from the interfaces
+//   here we consider the UART interface linked to the debugger connection
 void cmdLoop()
 {
 	char str[128];
 
 	if (getUart(str)>0) {
-		cmdHandleCommand(0,str);
+		cmdHandleCommand(str, sendUart);
 	}
 }
